@@ -54,10 +54,11 @@
         <!-- App Header -->
         <header class="flex items-center justify-between p-4 border-b border-gray-200">
             <div class="flex items-center space-x-3">
+                <!-- McLovin's Profile Details -->
                 <img src="https://placehold.co/40x40/FBBF24/FFFFFF?text=M" alt="McLovin" class="w-10 h-10 rounded-full border-2 border-amber-400">
                 <div>
                     <p class="font-bold text-gray-800">McLovin</p>
-                    <p class="text-xs text-gray-500">Hawaii</p>
+                    <p class="text-xs text-gray-500">Hawaii, 25</p>
                 </div>
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -130,6 +131,7 @@
 
     <script>
         // --- DATA ---
+        // Profiles to swipe through
         const profiles = [
             { name: 'Jessica', age: 24, bio: 'Lover of sunsets, long walks on the beach, and tacos. 🌮', img: 'https://images.unsplash.com/photo-1520466809213-7b9a56adcd45?q=80&w=800&auto=format&fit=crop' },
             { name: 'Chloe', age: 26, bio: 'Just a girl looking for her adventure buddy. Let\'s explore the world together, one trail at a time!', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop' },
@@ -171,7 +173,8 @@
             const card = document.createElement('div');
             card.className = 'profile-card';
 
-            const placeholderUrl = https://placehold.co/600x800/333/FFF?text=${encodeURIComponent(profile.name)};
+            // Placeholder image URL for fallback
+            const placeholderUrl = `https://placehold.co/600x800/333/FFF?text=${encodeURIComponent(profile.name)}`;
             
             card.innerHTML = `
                 <img src="${profile.img}" 
@@ -187,173 +190,266 @@
             return card;
         }
 
+        /**
+         * Renders the profile cards on the stack.
+         * Displays a message if no more profiles are available.
+         */
         function renderCards() {
-            cardStack.innerHTML = '';
+            cardStack.innerHTML = ''; // Clear existing cards
+            // Add cards from the current profile index, reversed to stack correctly
             profiles.slice(currentProfileIndex).reverse().forEach(profile => {
                 cardStack.appendChild(createProfileCard(profile));
             });
             
             if (cardStack.children.length > 0) {
+                // The current card is always the top-most one (last child added)
                 currentCard = cardStack.lastElementChild;
                 addCardEventListeners();
+                // Ensure buttons are enabled if there are cards
+                likeBtn.disabled = false;
+                dislikeBtn.disabled = false;
             } else {
-                cardStack.innerHTML = <div class="flex items-center justify-center h-full text-center text-gray-500"><p>No more profiles to show.<br>Come back later!</p></div>;
+                // Display message when no more profiles
+                cardStack.innerHTML = '<div class="flex items-center justify-center h-full text-center text-gray-500"><p>No more profiles to show.<br>Come back later!</p></div>';
+                // Disable buttons
                 likeBtn.disabled = true;
                 dislikeBtn.disabled = true;
             }
         }
 
+        /**
+         * Adds mouse and touch event listeners to the current profile card for dragging.
+         */
         function addCardEventListeners() {
             if (!currentCard) return;
             currentCard.addEventListener('mousedown', onDragStart);
-            currentCard.addEventListener('touchstart', onDragStart, { passive: true });
+            currentCard.addEventListener('touchstart', onDragStart, { passive: true }); // passive true for better scrolling performance
         }
 
+        /**
+         * Handles the start of a drag/swipe gesture.
+         * Records the starting X position and adds move/end listeners.
+         */
         function onDragStart(e) {
             if (!currentCard) return;
             isDragging = true;
-            currentCard.classList.add('dragging');
-            startX = e.pageX ?? e.touches[0].pageX;
+            currentCard.classList.add('dragging'); // Add dragging class for styling (e.g., no transition)
+            startX = e.pageX ?? e.touches[0].pageX; // Get X position for mouse or touch
+            
+            // Add move and end listeners to the document to track movement outside the card
             document.addEventListener('mousemove', onDragMove);
             document.addEventListener('touchmove', onDragMove, { passive: true });
             document.addEventListener('mouseup', onDragEnd);
             document.addEventListener('touchend', onDragEnd);
         }
 
+        /**
+         * Handles the movement during a drag/swipe gesture.
+         * Translates and rotates the card based on mouse/touch position.
+         */
         function onDragMove(e) {
             if (!isDragging || !currentCard) return;
             const currentX = e.pageX ?? e.touches[0].pageX;
-            const diffX = currentX - startX;
-            const rotate = diffX * 0.1;
-            currentCard.style.transform = translateX(${diffX}px) rotate(${rotate}deg);
+            const diffX = currentX - startX; // Horizontal difference
+            const rotate = diffX * 0.1; // Slight rotation effect
+            currentCard.style.transform = `translateX(${diffX}px) rotate(${rotate}deg)`;
         }
 
+        /**
+         * Handles the end of a drag/swipe gesture.
+         * Determines if a swipe occurred based on a threshold and triggers handleSwipe or resets card.
+         */
         function onDragEnd(e) {
             if (!isDragging || !currentCard) return;
             isDragging = false;
-            currentCard.classList.remove('dragging');
-            
+            currentCard.classList.remove('dragging'); // Remove dragging class
+
+            // Get final X position for mouse or touch
             const finalX = e.changedTouches ? e.changedTouches[0].pageX : e.pageX;
             const diffX = finalX - startX;
 
-            const decisionThreshold = window.innerWidth / 4;
+            const decisionThreshold = window.innerWidth / 4; // Swipe if moved more than 1/4 of screen width
             if (Math.abs(diffX) > decisionThreshold) {
+                // If moved beyond threshold, trigger swipe action
                 handleSwipe(diffX > 0 ? 'right' : 'left');
             } else {
+                // Otherwise, reset card position
                 currentCard.style.transform = 'translateX(0) rotate(0deg)';
             }
+            // Remove event listeners
             document.removeEventListener('mousemove', onDragMove);
             document.removeEventListener('touchmove', onDragMove);
             document.removeEventListener('mouseup', onDragEnd);
             document.removeEventListener('touchend', onDragEnd);
         }
 
+        /**
+         * Animates the card flying out and updates the profile stack.
+         * Always results in a match on right swipe.
+         */
         function handleSwipe(direction) {
             if (!currentCard) return;
-            const flyOutX = (direction === 'right' ? 1 : -1) * (window.innerWidth);
-            const rotate = (direction === 'right' ? 1 : -1) * 30;
-            currentCard.style.transform = translateX(${flyOutX}px) rotate(${rotate}deg);
-            currentCard.style.opacity = '0';
+            const flyOutX = (direction === 'right' ? 1 : -1) * (window.innerWidth); // Fly out off screen
+            const rotate = (direction === 'right' ? 1 : -1) * 30; // Rotation on fly out
+            currentCard.style.transform = `translateX(${flyOutX}px) rotate(${rotate}deg);`;
+            currentCard.style.opacity = '0'; // Fade out
+            
+            // Get the profile that was just swiped
             const swipedProfile = profiles[currentProfileIndex];
-            currentProfileIndex++;
+            currentProfileIndex++; // Move to the next profile
+
             setTimeout(() => {
-                if (direction === 'right') showMatch(swipedProfile);
-                else renderCards();
-            }, 300);
+                // After card animates out, decide what to do
+                if (direction === 'right') {
+                    // Always show match view if swiped right
+                    showMatch(swipedProfile);
+                } else {
+                    // Just render next cards if swiped left
+                    renderCards();
+                }
+            }, 300); // Wait for the card to animate out
         }
         
+        /**
+         * Displays the match view with the matched profile's details.
+         */
         function showMatch(profile) {
-            currentMatchProfile = profile; // Store matched profile
+            currentMatchProfile = profile; // Store matched profile for chat and icebreaker
             document.getElementById('match-name').textContent = profile.name;
-            document.getElementById('match-avatar').src = profile.img;
+            document.getElementById('match-avatar').src = profile.img; // Set matched user's avatar
+            
+            swipeView.classList.add('hidden'); // Hide swipe view
             matchView.classList.remove('hidden');
-            matchView.classList.add('flex');
-            // Reset Gemini UI
+            matchView.classList.add('flex'); // Show match view
+
+            // Reset Gemini UI elements when showing a new match
             icebreakerContainer.classList.add('hidden');
             icebreakerText.textContent = '';
             useIcebreakerBtn.classList.add('hidden');
+            icebreakerLoader.classList.add('hidden'); // Ensure loader is hidden too
         }
 
+        /**
+         * Switches from the match view to the chat view.
+         * Now, the first message is from McLovin, and then a response from the matched person.
+         */
         function showChat() {
             matchView.classList.add('hidden');
             matchView.classList.remove('flex');
-            swipeView.classList.add('hidden');
+            // Hide the swipe view if it's still visible (important if coming from match)
+            swipeView.classList.add('hidden'); 
             chatView.classList.remove('hidden');
             chatView.classList.add('flex');
-            addMessage(You matched with ${currentMatchProfile.name}. Say hello!, 'system');
+            
+            // McLovin sends the first message
+            addMessage(`Hey ${currentMatchProfile.name}, great to match with you!`, 'user');
+
+            // Simulate the matched person's responses
+            setTimeout(() => addMessage('Hi!', 'other'), 1000);
+            setTimeout(() => addMessage('I love you McLovin!', 'other'), 2500); // A bit later for a more natural conversation flow
         }
         
+        /**
+         * Adds a message bubble to the chat list.
+         * Supports 'user', 'other' (for the matched person), and 'system' messages.
+         */
         function addMessage(text, sender) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = flex ${sender === 'user' ? 'justify-end' : 'justify-start'};
+            messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`; // Align based on sender
+
             const messageBubble = document.createElement('div');
             messageBubble.textContent = text;
-            messageBubble.className = max-w-xs md:max-w-md p-3 rounded-2xl ${sender === 'user' ? 'bg-amber-400 text-white rounded-br-lg' : (sender === 'other' ? 'bg-gray-200 text-gray-800 rounded-bl-lg' : 'text-center w-full text-gray-500 text-sm')};
-            if (sender === 'system') messageList.appendChild(messageBubble);
-            else {
+            messageBubble.className = `max-w-xs md:max-w-md p-3 rounded-2xl ${
+                sender === 'user' ? 'bg-amber-400 text-white rounded-br-lg' : 
+                (sender === 'other' ? 'bg-gray-200 text-gray-800 rounded-bl-lg' : 
+                'text-center w-full text-gray-500 text-sm') // System messages
+            }`;
+            
+            // System messages are centered and directly appended to messageList
+            if (sender === 'system') {
+                messageList.appendChild(messageBubble);
+            } else {
+                // User and other messages are wrapped in a div for alignment
                 messageDiv.appendChild(messageBubble);
                 messageList.appendChild(messageDiv);
             }
+            // Scroll to the bottom of the chat list
             messageList.scrollTop = messageList.scrollHeight;
         }
 
+        /**
+         * Sends a message from the input field to the chat.
+         * No longer includes the dummy "Chicka chicka yeah!" response.
+         */
         function sendMessage() {
             const text = messageInput.value.trim();
             if (text) {
-                addMessage(text, 'user');
-                messageInput.value = '';
-                setTimeout(() => addMessage('Chicka chicka yeah!', 'other'), 1000);
+                addMessage(text, 'user'); // Add user's message
+                messageInput.value = ''; // Clear input
+                // No automatic "Chicka chicka yeah!" response anymore.
+                // You can add more complex AI or fixed responses here if desired.
             }
         }
 
         // --- ✨ Gemini API Integration ---
+        /**
+         * Generates an icebreaker message using the Gemini API based on the matched profile's bio.
+         * Includes loading states and error handling with exponential backoff.
+         */
         async function generateIcebreaker() {
             if (!currentMatchProfile) return;
 
+            // Show loader and hide text/button
             icebreakerContainer.classList.remove('hidden');
             icebreakerLoader.classList.remove('hidden');
             icebreakerText.classList.add('hidden');
             useIcebreakerBtn.classList.add('hidden');
 
-            const prompt = You are a witty and charming dating assistant. Based on this dating app bio, write a short, fun, and flirty icebreaker. The icebreaker should be one or two sentences. Bio: "${currentMatchProfile.bio}";
+            // Construct the prompt for the Gemini model
+            const prompt = `You are a witty and charming dating assistant. Based on this dating app bio, write a short, fun, and flirty icebreaker. The icebreaker should be one or two sentences. Bio: "${currentMatchProfile.bio}"`;
             
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
-            const apiKey = ""; 
-            const apiUrl = https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey};
+            const apiKey = ""; // Canvas will provide this key at runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
             try {
-                // Exponential backoff for retries
+                // Exponential backoff for retries (up to 5 attempts)
                 let response;
-                let delay = 1000;
+                let delay = 1000; // Start with 1 second delay
                 for (let i = 0; i < 5; i++) {
                     response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (response.ok) break;
+                    if (response.ok) {
+                        break; // Success, exit loop
+                    }
+                    // If not ok, wait and retry
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2;
+                    delay *= 2; // Double the delay for next attempt
                 }
 
                 if (!response.ok) {
-                    throw new Error(API request failed with status ${response.status});
+                    throw new Error(`API request failed with status ${response.status}`);
                 }
                 
                 const result = await response.json();
                 
-                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
-                    const generatedText = result.candidates[0].content.parts[0].text.replace(/"/g, ''); // Remove quotes
+                // Safely access the generated text
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0 && result.candidates[0].content.parts[0].text) {
+                    const generatedText = result.candidates[0].content.parts[0].text.replace(/"/g, ''); // Remove any lingering quotes
                     icebreakerText.textContent = generatedText;
                 } else {
-                    icebreakerText.textContent = "Couldn't generate a line. Try starting with 'Hey!'";
+                    icebreakerText.textContent = "Couldn't generate a line. How about: 'Hey, I love your bio!'";
                 }
 
             } catch (error) {
-                console.error("Gemini API Error:", error.message); // More detailed error logging
-                icebreakerText.textContent = "Sorry, the AI is sleeping. Try again!";
+                console.error("Gemini API Error:", error.message); 
+                icebreakerText.textContent = "Sorry, couldn't generate an icebreaker right now. Please try again!";
             } finally {
+                // Always hide loader and show content/button
                 icebreakerLoader.classList.add('hidden');
                 icebreakerText.classList.remove('hidden');
                 useIcebreakerBtn.classList.remove('hidden');
@@ -372,12 +468,13 @@
         generateIcebreakerBtn.addEventListener('click', generateIcebreaker);
         useIcebreakerBtn.addEventListener('click', () => {
             const opener = icebreakerText.textContent;
-            showChat();
-            messageInput.value = opener;
-            messageInput.focus();
+            showChat(); // Navigate to chat view
+            messageInput.value = opener; // Pre-fill input with icebreaker
+            messageInput.focus(); // Focus on the input for immediate sending
         });
 
         // --- INITIALIZATION ---
+        // Render the initial set of cards when the page loads
         renderCards();
     </script>
 </body>
