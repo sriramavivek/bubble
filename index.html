@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bumble Clone - McLovin's Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: none; /* Prevents scrolling while swiping */
+        }
+        /* Card stack styling */
+        .profile-card {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 1.5rem; /* 24px */
+            cursor: grab;
+            will-change: transform;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            overflow: hidden; /* Important for the image inside */
+        }
+        .profile-card:not(:first-child) {
+            transform: scale(0.95) translateY(20px);
+            opacity: 0.8;
+        }
+        .dragging {
+            cursor: grabbing;
+            transition: none; /* Disable transition while dragging for instant feedback */
+        }
+        /* Simple spinner for loading state */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #8B5CF6; /* Purple */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div id="app-container" class="w-full max-w-sm h-[85vh] max-h-[700px] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+
+        <!-- App Header -->
+        <header class="flex items-center justify-between p-4 border-b border-gray-200">
+            <div class="flex items-center space-x-3">
+                <img src="https://placehold.co/40x40/FBBF24/FFFFFF?text=M" alt="McLovin" class="w-10 h-10 rounded-full border-2 border-amber-400">
+                <div>
+                    <p class="font-bold text-gray-800">McLovin</p>
+                    <p class="text-xs text-gray-500">Hawaii</p>
+                </div>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 16v-2m8-6h2M4 12H2m15.364 6.364l1.414 1.414M4.222 4.222l1.414 1.414m12.728 0l-1.414 1.414M5.636 18.364l-1.414 1.414" />
+            </svg>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content" class="flex-grow flex flex-col relative p-4 pb-0">
+            
+            <!-- Swipe View -->
+            <div id="swipe-view" class="flex-grow flex flex-col">
+                <div id="card-stack" class="relative flex-grow">
+                    <!-- Profile cards will be injected here by JS -->
+                </div>
+                <div id="action-buttons" class="flex justify-center items-center space-x-8 py-4">
+                    <button id="dislike-btn" class="p-4 bg-white rounded-full shadow-lg text-red-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <button id="like-btn" class="p-5 bg-amber-400 rounded-full shadow-lg text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Match View (Hidden by default) -->
+            <div id="match-view" class="hidden absolute inset-0 bg-black bg-opacity-80 flex-col items-center justify-center text-white z-50 p-8 text-center">
+                <h1 class="text-5xl font-bold text-amber-300 animate-pulse">It's a Match!</h1>
+                <p class="mt-4 text-lg">You and <span id="match-name"></span> liked each other.</p>
+                <div class="flex items-center mt-8 space-x-4">
+                    <img src="https://placehold.co/80x80/FBBF24/FFFFFF?text=M" alt="McLovin" class="w-20 h-20 rounded-full border-4 border-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg>
+                    <img id="match-avatar" src="" alt="Matched User" class="w-20 h-20 rounded-full border-4 border-white">
+                </div>
+                <button id="start-chat-btn" class="mt-12 bg-amber-400 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-500 transition-colors">
+                    Start Chatting
+                </button>
+                <!-- ✨ Gemini Feature -->
+                <button id="generate-icebreaker-btn" class="mt-4 bg-purple-600 text-white font-bold py-3 px-8 rounded-full hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2">
+                    <span>✨ Generate Icebreaker</span>
+                </button>
+                <div id="icebreaker-container" class="mt-4 p-4 bg-gray-900 bg-opacity-50 rounded-lg w-full max-w-xs hidden">
+                    <div id="icebreaker-loader" class="hidden">
+                        <div class="loader"></div>
+                    </div>
+                    <p id="icebreaker-text" class="text-white italic"></p>
+                    <button id="use-icebreaker-btn" class="mt-3 bg-green-500 text-white text-sm font-bold py-2 px-4 rounded-full hover:bg-green-600 hidden">
+                        Use this opener & Chat
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat View (Hidden by default) -->
+            <div id="chat-view" class="hidden flex-grow flex-col">
+                <div class="flex-grow overflow-y-auto p-4 space-y-4">
+                    <div id="message-list">
+                        <!-- Messages will appear here -->
+                    </div>
+                </div>
+                <div class="p-4 border-t border-gray-200">
+                    <div class="flex items-center bg-gray-100 rounded-full px-4 py-2">
+                        <input id="message-input" type="text" placeholder="Type a message..." class="flex-grow bg-transparent focus:outline-none">
+                        <button id="send-btn" class="ml-2 text-amber-500 font-semibold">Send</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const profiles = [
+            { name: 'Jessica', age: 24, bio: 'Lover of sunsets, long walks on the beach, and tacos. 🌮', img: 'https://images.unsplash.com/photo-1520466809213-7b9a56adcd45?q=80&w=800&auto=format&fit=crop' },
+            { name: 'Chloe', age: 26, bio: 'Just a girl looking for her adventure buddy. Let\'s explore the world together, one trail at a time!', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop' },
+            { name: 'Emily', age: 23, bio: 'Fluent in sarcasm and movie quotes. My dog thinks I\'m cool, so I must be doing something right.', img: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=800&auto=format&fit=crop' },
+            { name: 'Sophia', age: 27, bio: 'Chicka chicka yeah! Let\'s find a cool concert to go to this weekend.', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=800&auto=format&fit=crop' }
+        ];
+        
+        // --- DOM ELEMENTS ---
+        const cardStack = document.getElementById('card-stack');
+        const likeBtn = document.getElementById('like-btn');
+        const dislikeBtn = document.getElementById('dislike-btn');
+        const swipeView = document.getElementById('swipe-view');
+        const matchView = document.getElementById('match-view');
+        const chatView = document.getElementById('chat-view');
+        const startChatBtn = document.getElementById('start-chat-btn');
+        const messageList = document.getElementById('message-list');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        // Gemini Feature Elements
+        const generateIcebreakerBtn = document.getElementById('generate-icebreaker-btn');
+        const icebreakerContainer = document.getElementById('icebreaker-container');
+        const icebreakerLoader = document.getElementById('icebreaker-loader');
+        const icebreakerText = document.getElementById('icebreaker-text');
+        const useIcebreakerBtn = document.getElementById('use-icebreaker-btn');
+
+        let currentCard = null;
+        let startX = 0;
+        let isDragging = false;
+        let currentProfileIndex = 0;
+        let currentMatchProfile = null; // To store the profile of the matched user
+
+        // --- FUNCTIONS ---
+
+        /**
+         * Creates a profile card with a fallback image.
+         * Instead of a CSS background, it uses an <img> tag for better error handling.
+         */
+        function createProfileCard(profile) {
+            const card = document.createElement('div');
+            card.className = 'profile-card';
+
+            const placeholderUrl = https://placehold.co/600x800/333/FFF?text=${encodeURIComponent(profile.name)};
+            
+            card.innerHTML = `
+                <img src="${profile.img}" 
+                     alt="${profile.name}" 
+                     onerror="this.onerror=null;this.src='${placeholderUrl}';"
+                     class="absolute inset-0 w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+                <div class="absolute bottom-0 left-0 p-6 text-white w-full">
+                    <h2 class="text-3xl font-bold">${profile.name}, ${profile.age}</h2>
+                    <p class="mt-1 text-lg">${profile.bio}</p>
+                </div>
+            `;
+            return card;
+        }
+
+        function renderCards() {
+            cardStack.innerHTML = '';
+            profiles.slice(currentProfileIndex).reverse().forEach(profile => {
+                cardStack.appendChild(createProfileCard(profile));
+            });
+            
+            if (cardStack.children.length > 0) {
+                currentCard = cardStack.lastElementChild;
+                addCardEventListeners();
+            } else {
+                cardStack.innerHTML = <div class="flex items-center justify-center h-full text-center text-gray-500"><p>No more profiles to show.<br>Come back later!</p></div>;
+                likeBtn.disabled = true;
+                dislikeBtn.disabled = true;
+            }
+        }
+
+        function addCardEventListeners() {
+            if (!currentCard) return;
+            currentCard.addEventListener('mousedown', onDragStart);
+            currentCard.addEventListener('touchstart', onDragStart, { passive: true });
+        }
+
+        function onDragStart(e) {
+            if (!currentCard) return;
+            isDragging = true;
+            currentCard.classList.add('dragging');
+            startX = e.pageX ?? e.touches[0].pageX;
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('touchmove', onDragMove, { passive: true });
+            document.addEventListener('mouseup', onDragEnd);
+            document.addEventListener('touchend', onDragEnd);
+        }
+
+        function onDragMove(e) {
+            if (!isDragging || !currentCard) return;
+            const currentX = e.pageX ?? e.touches[0].pageX;
+            const diffX = currentX - startX;
+            const rotate = diffX * 0.1;
+            currentCard.style.transform = translateX(${diffX}px) rotate(${rotate}deg);
+        }
+
+        function onDragEnd(e) {
+            if (!isDragging || !currentCard) return;
+            isDragging = false;
+            currentCard.classList.remove('dragging');
+            
+            const finalX = e.changedTouches ? e.changedTouches[0].pageX : e.pageX;
+            const diffX = finalX - startX;
+
+            const decisionThreshold = window.innerWidth / 4;
+            if (Math.abs(diffX) > decisionThreshold) {
+                handleSwipe(diffX > 0 ? 'right' : 'left');
+            } else {
+                currentCard.style.transform = 'translateX(0) rotate(0deg)';
+            }
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchend', onDragEnd);
+        }
+
+        function handleSwipe(direction) {
+            if (!currentCard) return;
+            const flyOutX = (direction === 'right' ? 1 : -1) * (window.innerWidth);
+            const rotate = (direction === 'right' ? 1 : -1) * 30;
+            currentCard.style.transform = translateX(${flyOutX}px) rotate(${rotate}deg);
+            currentCard.style.opacity = '0';
+            const swipedProfile = profiles[currentProfileIndex];
+            currentProfileIndex++;
+            setTimeout(() => {
+                if (direction === 'right') showMatch(swipedProfile);
+                else renderCards();
+            }, 300);
+        }
+        
+        function showMatch(profile) {
+            currentMatchProfile = profile; // Store matched profile
+            document.getElementById('match-name').textContent = profile.name;
+            document.getElementById('match-avatar').src = profile.img;
+            matchView.classList.remove('hidden');
+            matchView.classList.add('flex');
+            // Reset Gemini UI
+            icebreakerContainer.classList.add('hidden');
+            icebreakerText.textContent = '';
+            useIcebreakerBtn.classList.add('hidden');
+        }
+
+        function showChat() {
+            matchView.classList.add('hidden');
+            matchView.classList.remove('flex');
+            swipeView.classList.add('hidden');
+            chatView.classList.remove('hidden');
+            chatView.classList.add('flex');
+            addMessage(You matched with ${currentMatchProfile.name}. Say hello!, 'system');
+        }
+        
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = flex ${sender === 'user' ? 'justify-end' : 'justify-start'};
+            const messageBubble = document.createElement('div');
+            messageBubble.textContent = text;
+            messageBubble.className = max-w-xs md:max-w-md p-3 rounded-2xl ${sender === 'user' ? 'bg-amber-400 text-white rounded-br-lg' : (sender === 'other' ? 'bg-gray-200 text-gray-800 rounded-bl-lg' : 'text-center w-full text-gray-500 text-sm')};
+            if (sender === 'system') messageList.appendChild(messageBubble);
+            else {
+                messageDiv.appendChild(messageBubble);
+                messageList.appendChild(messageDiv);
+            }
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                addMessage(text, 'user');
+                messageInput.value = '';
+                setTimeout(() => addMessage('Chicka chicka yeah!', 'other'), 1000);
+            }
+        }
+
+        // --- ✨ Gemini API Integration ---
+        async function generateIcebreaker() {
+            if (!currentMatchProfile) return;
+
+            icebreakerContainer.classList.remove('hidden');
+            icebreakerLoader.classList.remove('hidden');
+            icebreakerText.classList.add('hidden');
+            useIcebreakerBtn.classList.add('hidden');
+
+            const prompt = You are a witty and charming dating assistant. Based on this dating app bio, write a short, fun, and flirty icebreaker. The icebreaker should be one or two sentences. Bio: "${currentMatchProfile.bio}";
+            
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+            const apiKey = ""; 
+            const apiUrl = https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey};
+
+            try {
+                // Exponential backoff for retries
+                let response;
+                let delay = 1000;
+                for (let i = 0; i < 5; i++) {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) break;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+
+                if (!response.ok) {
+                    throw new Error(API request failed with status ${response.status});
+                }
+                
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
+                    const generatedText = result.candidates[0].content.parts[0].text.replace(/"/g, ''); // Remove quotes
+                    icebreakerText.textContent = generatedText;
+                } else {
+                    icebreakerText.textContent = "Couldn't generate a line. Try starting with 'Hey!'";
+                }
+
+            } catch (error) {
+                console.error("Gemini API Error:", error.message); // More detailed error logging
+                icebreakerText.textContent = "Sorry, the AI is sleeping. Try again!";
+            } finally {
+                icebreakerLoader.classList.add('hidden');
+                icebreakerText.classList.remove('hidden');
+                useIcebreakerBtn.classList.remove('hidden');
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        likeBtn.addEventListener('click', () => handleSwipe('right'));
+        dislikeBtn.addEventListener('click', () => handleSwipe('left'));
+        startChatBtn.addEventListener('click', showChat);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        // Gemini Feature Listeners
+        generateIcebreakerBtn.addEventListener('click', generateIcebreaker);
+        useIcebreakerBtn.addEventListener('click', () => {
+            const opener = icebreakerText.textContent;
+            showChat();
+            messageInput.value = opener;
+            messageInput.focus();
+        });
+
+        // --- INITIALIZATION ---
+        renderCards();
+    </script>
+</body>
+</html>
